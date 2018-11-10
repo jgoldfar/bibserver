@@ -6,7 +6,11 @@ BibTex parser.
 
 import sys
 import string
-import cStringIO
+if (sys.version_info > (3, 0)):
+    from io import StringIO
+else:
+    from cStringIO import StringIO
+
 import json
 import unicodedata
 import re
@@ -16,7 +20,7 @@ class BibTexParser(object):
     def __init__(self, fileobj):
 
         data = fileobj.read()
-        
+
         # On some sample data files, the character encoding detection simply hangs
         # We are going to default to utf8, and mandate it.
         self.encoding = 'utf8'
@@ -24,12 +28,12 @@ class BibTexParser(object):
         # Some files have Byte-order marks inserted at the start
         if data[:3] == '\xef\xbb\xbf':
             data = data[3:]
-        self.fileobj = cStringIO.StringIO(data)
-        
+        self.fileobj = StringIO(data)
+
         # set which bibjson schema this parser parses to
         self.has_metadata = False
         self.persons = []
-        # if bibtex file has substition strings, they are stored here, 
+        # if bibtex file has substition strings, they are stored here,
         # then the values are checked for those substitions in add_val
         self.replace_dict = {}
         # pre-defined set of key changes
@@ -72,12 +76,12 @@ class BibTexParser(object):
         return records, {}
 
     def parse_record(self, record):
-        '''given a bibtex record, tidy whitespace and other rubbish; 
+        '''given a bibtex record, tidy whitespace and other rubbish;
         then parse out the bibtype and citekey, then find all the
         key-value pairs it contains'''
-        
+
         d = {}
-        
+
         if not record.startswith('@'):
             return d
 
@@ -140,7 +144,7 @@ class BibTexParser(object):
 
     def customisations(self,record):
         '''alters some values to fit bibjson format'''
-        if 'eprint' in record and not 'year' in record: 
+        if 'eprint' in record and not 'year' in record:
             yy = '????'
             ss = record['eprint'].split('/')
             if len(ss) == 2: yy = ss[1][0:2]
@@ -211,7 +215,7 @@ class BibTexParser(object):
                         record['identifier'] = []
                     record['identifier'].append({"id":record[ident], "type":ident})
                 del record[ident]
-        
+
         return record
 
 
@@ -238,10 +242,15 @@ class BibTexParser(object):
         for k in self.replace_dict.keys():
             if val == k:
                 val = self.replace_dict[k]
-        if not isinstance(val, unicode):
-            val = unicode(val,self.encoding,'ignore')
+        if (sys.version_info > (3, 0)):
+            u2l_items = self.unicode_to_latex.items()
+            val = str(val)
+        else:
+            u2l_items = self.unicode_to_latex.iteritems()
+            if not isinstance(val, unicode):
+                val = unicode(val,self.encoding,'ignore')
         if '\\' in val or '{' in val:
-            for k, v in self.unicode_to_latex.iteritems():
+            for k, v in u2l_items:
                 if v in val:
                     parts = val.split(str(v))
                     for key,val in enumerate(parts):
@@ -267,10 +276,13 @@ class BibTexParser(object):
         key = key.strip().strip('@').lower()
         if key in self.alt_dict.keys():
             key = self.alt_dict[key]
-        if not isinstance(key, unicode):
-            return unicode(key,'utf-8')
+        if (sys.version_info > (3, 0)):
+                return str(key)
         else:
-            return key
+            if not isinstance(key, unicode):
+                return unicode(key,'utf-8')
+            else:
+                return key
 
 
     ''' make people names as surname, firstnames
@@ -2665,13 +2677,13 @@ def parse(filehandle=sys.stdin):
         sys.stdout.write(json.dumps({'records':records, 'metadata':metadata}))
     else:
         sys.stderr.write('Zero records were parsed from the data')
-    
+
 def main():
     conf = {"display_name": "BibTex",
             "format": "bibtex",
-            "contact": "openbiblio-dev@lists.okfn.org", 
-            "bibserver_plugin": True, 
-            "BibJSON_version": "0.81"}        
+            "contact": "openbiblio-dev@lists.okfn.org",
+            "bibserver_plugin": True,
+            "BibJSON_version": "0.81"}
     for x in sys.argv[1:]:
         if x == '-bibserver':
             sys.stdout.write(json.dumps(conf))
@@ -2680,6 +2692,6 @@ def main():
             parse(open(x))
             sys.exit()
     parse()
-            
+
 if __name__ == '__main__':
-    main()    
+    main()
